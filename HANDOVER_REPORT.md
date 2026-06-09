@@ -268,6 +268,8 @@ final baseUrl = prefs.getString('server_url') ?? 'http://127.0.0.1:8000';
 | `/users/{serverId}/qr-token` | DELETE | QR 토큰 삭제 |
 | `/users/{serverId}/sessions` | POST | 측정 결과 저장 |
 | `/users/{serverId}/sessions` | GET | 측정 이력 조회 |
+| `/users/{serverId}/causes` | POST | 증상/원인 기록 저장 |
+| `/users/{serverId}/causes` | GET | 증상/원인 기록 조회 |
 
 ### 5-3. 요청/응답 형식
 
@@ -890,6 +892,45 @@ shared_api_service.dart    // HTTP 요청/응답
 ---
 
 *본 보고서는 2026-05-14 기준 `master` 브랜치 최신 커밋(4ccaeac) 기준으로 작성되었습니다.*
+
+---
+
+## 19. 서버 DB 테이블 목록 (shared_api.py 기준)
+
+서버 DB 파일: `data/hrv_kiosk.db` (모바일 앱 + 키오스크 공용)
+
+| 테이블 | 역할 |
+|--------|------|
+| `users` | 사용자 기본 정보 (user_id UUID, name, phone, birth_year, birth_month, gender, region) |
+| `face_descriptors` | 얼굴 임베딩 128차원 벡터 (user_id 1:1) |
+| `qr_tokens` | QR 로그인용 임시 토큰 (만료시간 포함, user_id 1:1) |
+| `sessions` | 측정 결과 (heart_rate, hrv, stress_index 등 JSON 저장) |
+| `cause_records` | 증상/원인 기록 (symptom, cause, session_id 참조) |
+| `smalltalk_sessions` | 키오스크 AI 대화 세션 기록 |
+
+### 모바일 로컬 DB ↔ 서버 DB 대응 관계
+
+```
+모바일 로컬 (atec_health.db)      서버 공용 (hrv_kiosk.db)
+────────────────────────────────────────────────────────
+users.server_id              →    users.user_id (UUID)
+measurements                 →    sessions
+cause_records                →    cause_records
+(없음)                       →    face_descriptors
+(없음)                       →    qr_tokens
+(없음)                       →    smalltalk_sessions
+```
+
+> 모바일 로컬 DB는 오프라인 우선 백업 역할. 서버 DB가 키오스크와 공유하는 마스터 DB.
+
+---
+
+## 20. 변경 이력
+
+| 날짜 | 내용 |
+|------|------|
+| 2026-05-14 | 최초 작성 |
+| 2026-06-09 | `cause_records` 서버 동기화 추가 — `shared_api.py` 테이블/엔드포인트 추가, `shared_api_service.dart` saveCause/getCauses 메서드 추가, `cause_record_screen.dart` 서버 API 호출 추가 |
 
 
 
