@@ -239,4 +239,50 @@ class SharedApiService {
     } catch (_) {}
     return [];
   }
+
+  // ─────────────────────────────────────────────
+  // 증상/원인 기록
+  // ─────────────────────────────────────────────
+
+  /// 증상/원인 저장
+  Future<bool> saveCause(String serverId, {
+    required String symptom,
+    required String cause,
+    int? sessionId,
+    String? recordedAt,
+  }) async {
+    try {
+      final url = await baseUrl;
+      final res = await http
+          .post(
+            Uri.parse('$url/users/$serverId/causes'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'symptom': symptom,
+              'cause': cause,
+              if (sessionId != null) 'session_id': sessionId,
+              'recorded_at': recordedAt ?? DateTime.now().toIso8601String(),
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
+      return res.statusCode == 201;
+    } catch (_) {}
+    return false;
+  }
+
+  /// 증상/원인 기록 조회
+  Future<List<Map<String, dynamic>>> getCauses(String serverId) async {
+    try {
+      final url = await baseUrl;
+      final res = await http
+          .get(Uri.parse('$url/users/$serverId/causes'))
+          .timeout(const Duration(seconds: 10));
+
+      if (res.statusCode == 200) {
+        final list = jsonDecode(res.body) as List<dynamic>;
+        return list.cast<Map<String, dynamic>>();
+      }
+    } catch (_) {}
+    return [];
+  }
 }

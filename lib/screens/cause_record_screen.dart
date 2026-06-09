@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../db/cause_dao.dart';
 import '../models/cause_record.dart';
+import '../services/shared_api_service.dart';
 import '../services/user_session.dart';
 import '../utils/constants.dart';
 import '../widgets/avatar_widget.dart';
@@ -66,12 +67,24 @@ class _CauseRecordScreenState extends State<CauseRecordScreen> {
             ? _customController.text.trim()
             : '미입력');
 
-    await CauseDao().insert(CauseRecord(
+    final record = CauseRecord(
       userId: userId,
       measurementId: widget.measurementId,
       symptom: symptomText.isNotEmpty ? symptomText : '미입력',
       cause: causeText,
-    ));
+    );
+    await CauseDao().insert(record);
+
+    // 서버 동기화 (실패해도 로컬 저장은 완료)
+    final serverId = UserSession.instance.currentUser?.serverId;
+    if (serverId != null) {
+      await SharedApiService.instance.saveCause(
+        serverId,
+        symptom: record.symptom,
+        cause: record.cause,
+        sessionId: widget.measurementId,
+      );
+    }
 
     if (!mounted) return;
     setState(() {
