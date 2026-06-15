@@ -29,6 +29,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   String? _selectedGender;
   String? _selectedRegion;
+  int? _selectedBirthMonth;
 
   // 얼굴 등록
   int _step = 0;
@@ -122,17 +123,31 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final user = User(
       name: _nameController.text.trim(),
       birthYear: int.tryParse(_birthYearController.text.trim()),
+      birthMonth: _selectedBirthMonth,
       gender: _selectedGender,
       region: _selectedRegion,
       phone: _phoneController.text.trim(),
     );
 
-    await UserSession.instance.register(
+    final serverSynced = await UserSession.instance.register(
       user,
       faceDescriptor: _consentFace ? _capturedDescriptor : null,
     );
 
     if (!mounted) return;
+
+    if (!serverSynced) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('서버 연결 실패 — 로컬에 저장됐어요. 서버 연결 후 자동으로 동기화됩니다.'),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 4),
+        ),
+      );
+      await Future.delayed(const Duration(seconds: 4));
+      if (!mounted) return;
+    }
+
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (_) => const HomeScreen()),
@@ -225,6 +240,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 }
                 return null;
               },
+            ),
+            const SizedBox(height: 20),
+
+            // 태어난 달
+            _buildLabel('태어난 달'),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<int>(
+              value: _selectedBirthMonth,
+              dropdownColor: AppColors.primaryDark,
+              style: const TextStyle(color: AppColors.textPrimary, fontSize: 17),
+              decoration: _inputDeco(hint: '월을 선택해주세요', icon: Icons.calendar_month_outlined),
+              items: List.generate(12, (i) => i + 1).map((m) => DropdownMenuItem(
+                value: m,
+                child: Text('$m월', style: const TextStyle(color: AppColors.textPrimary)),
+              )).toList(),
+              onChanged: (v) => setState(() => _selectedBirthMonth = v),
+              validator: (v) => v == null ? '태어난 달을 선택해주세요' : null,
             ),
             const SizedBox(height: 20),
 

@@ -73,17 +73,18 @@ class _CauseRecordScreenState extends State<CauseRecordScreen> {
       symptom: symptomText.isNotEmpty ? symptomText : '미입력',
       cause: causeText,
     );
-    await CauseDao().insert(record);
+    final recordId = await CauseDao().insert(record);
 
-    // 서버 동기화 (실패해도 로컬 저장은 완료)
+    // 서버 동기화 (실패해도 로컬 저장은 완료, SyncService가 나중에 재시도)
     final serverId = UserSession.instance.currentUser?.serverId;
     if (serverId != null) {
-      await SharedApiService.instance.saveCause(
+      final ok = await SharedApiService.instance.saveCause(
         serverId,
         symptom: record.symptom,
         cause: record.cause,
         sessionId: widget.measurementId,
       );
+      if (ok) await CauseDao().markSynced(recordId);
     }
 
     if (!mounted) return;

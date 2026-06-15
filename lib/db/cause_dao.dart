@@ -26,6 +26,19 @@ class CauseDao {
     return rows.map(CauseRecord.fromMap).toList();
   }
 
+  /// 서버에 아직 업로드되지 않은 원인 기록
+  Future<List<CauseRecord>> getUnsynced() async {
+    final db = await _db.database;
+    final rows = await db.query('cause_records', where: 'synced = 0');
+    return rows.map(CauseRecord.fromMap).toList();
+  }
+
+  Future<void> markSynced(int id) async {
+    final db = await _db.database;
+    await db.update('cause_records', {'synced': 1},
+        where: 'id = ?', whereArgs: [id]);
+  }
+
   Future<int> delete(int id) async {
     final db = await _db.database;
     return await db.delete('cause_records', where: 'id = ?', whereArgs: [id]);

@@ -33,6 +33,13 @@ class UserDao {
     return User.fromMap(rows.first);
   }
 
+  /// 서버에 아직 등록되지 않은 사용자 (server_id 없음)
+  Future<List<User>> getUnsynced() async {
+    final db = await _db.database;
+    final rows = await db.query('users', where: 'server_id IS NULL');
+    return rows.map(User.fromMap).toList();
+  }
+
   Future<int> update(User user) async {
     final db = await _db.database;
     return await db.update(

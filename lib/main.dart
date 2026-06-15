@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'screens/splash_screen.dart';
+import 'services/sync_service.dart';
 import 'services/user_session.dart';
 import 'utils/constants.dart';
 
@@ -9,6 +10,9 @@ void main() async {
 
   // 저장된 사용자 세션 복원
   await UserSession.instance.init();
+
+  // 서버 미동기화 데이터 자동 업로드 시작 (앱 시작/네트워크 복구/주기적)
+  SyncService.instance.start();
 
   // 세로 화면 고정
   SystemChrome.setPreferredOrientations([

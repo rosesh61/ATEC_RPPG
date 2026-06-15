@@ -62,6 +62,19 @@ class MeasurementDao {
     return rows.map(MeasurementRecord.fromMap).toList();
   }
 
+  /// 서버에 아직 업로드되지 않은 측정 기록
+  Future<List<MeasurementRecord>> getUnsynced() async {
+    final db = await _db.database;
+    final rows = await db.query('measurements', where: 'synced = 0');
+    return rows.map(MeasurementRecord.fromMap).toList();
+  }
+
+  Future<void> markSynced(int id) async {
+    final db = await _db.database;
+    await db.update('measurements', {'synced': 1},
+        where: 'id = ?', whereArgs: [id]);
+  }
+
   Future<int> delete(int id) async {
     final db = await _db.database;
     return await db.delete('measurements', where: 'id = ?', whereArgs: [id]);

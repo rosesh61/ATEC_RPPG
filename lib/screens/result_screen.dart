@@ -30,10 +30,6 @@ class ResultScreen extends StatelessWidget {
                         _buildAvatarSection(),
                         const SizedBox(height: 20),
 
-                        // 메인 스트레스 카드
-                        _buildStressCard(),
-                        const SizedBox(height: 16),
-
                         // 심박수 + HRV 카드 (가로)
                         Row(
                           children: [
@@ -175,61 +171,6 @@ class ResultScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildStressCard() {
-    final color = _stressColor(result.stressIndex);
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [color.withOpacity(0.7), color.withOpacity(0.4)],
-        ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.5)),
-      ),
-      child: Column(
-        children: [
-          const Text(
-            '스트레스 지수',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            result.stressIndex.toStringAsFixed(0),
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 72,
-              fontWeight: FontWeight.w800,
-              height: 1,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              result.stressLevel,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildMetricCard({
     required String emoji,
     required String title,
@@ -305,28 +246,29 @@ class ResultScreen extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            '스트레스 게이지',
+            '스트레스 단계',
             style: TextStyle(
               color: AppColors.textSecondary,
               fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           SizedBox(
-            height: 60,
+            height: 38,
             child: CustomPaint(
-              painter: _StressMeterPainter(result.stressIndex),
+              painter: _StressGradientPainter(result.stressIndex),
               child: const SizedBox.expand(),
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
+          // 구간 레이블 — 너비 비율을 구간 크기(30/30/20/20)에 맞춤
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: const [
-              Text('안정', style: TextStyle(color: AppColors.success, fontSize: 11)),
-              Text('보통', style: TextStyle(color: AppColors.warning, fontSize: 11)),
-              Text('높음', style: TextStyle(color: AppColors.error, fontSize: 11)),
+              Expanded(flex: 30, child: Text('낮음',    textAlign: TextAlign.center, style: TextStyle(color: Color(0xFF5AAD77), fontSize: 11, fontWeight: FontWeight.w600))),
+              Expanded(flex: 30, child: Text('보통',    textAlign: TextAlign.center, style: TextStyle(color: Color(0xFFA8C45A), fontSize: 11, fontWeight: FontWeight.w600))),
+              Expanded(flex: 20, child: Text('높음',    textAlign: TextAlign.center, style: TextStyle(color: Color(0xFFE8B84B), fontSize: 11, fontWeight: FontWeight.w600))),
+              Expanded(flex: 20, child: Text('매우 높음', textAlign: TextAlign.center, style: TextStyle(color: Color(0xFFEF5350), fontSize: 11, fontWeight: FontWeight.w600))),
             ],
           ),
         ],
@@ -499,12 +441,6 @@ class ResultScreen extends StatelessWidget {
     );
   }
 
-  Color _stressColor(double index) {
-    if (index < 30) return AppColors.success;
-    if (index < 60) return AppColors.warning;
-    return AppColors.error;
-  }
-
   String _hrInterpretation(double hr) {
     if (hr < 60) return '서맥';
     if (hr < 100) return '정상';
@@ -538,39 +474,50 @@ class ResultScreen extends StatelessWidget {
   }
 }
 
-class _StressMeterPainter extends CustomPainter {
-  final double stressLevel;
-  _StressMeterPainter(this.stressLevel);
+class _StressGradientPainter extends CustomPainter {
+  final double stressIndex;
+  const _StressGradientPainter(this.stressIndex);
 
   @override
   void paint(Canvas canvas, Size size) {
-    final gradient = const LinearGradient(
-      colors: [AppColors.success, AppColors.warning, AppColors.error],
-      stops: [0.0, 0.5, 1.0],
-    );
-    final rect = Rect.fromLTWH(0, size.height / 2 - 6, size.width, 12);
-    final paint = Paint()
-      ..shader = gradient.createShader(rect)
-      ..style = PaintingStyle.fill;
-    canvas.drawRRect(
-        RRect.fromRectAndRadius(rect, const Radius.circular(6)), paint);
+    const barH   = 16.0;
+    const triH   = 14.0;
+    const barTop = triH + 4.0;
 
-    final indicatorX = size.width * (stressLevel / 100);
-    canvas.drawCircle(
-      Offset(indicatorX, size.height / 2),
-      12,
-      Paint()..color = Colors.white,
+    final barRect  = Rect.fromLTWH(0, barTop, size.width, barH);
+    final barRRect = RRect.fromRectAndRadius(barRect, const Radius.circular(barH / 2));
+
+    // 초록 → 연두 → 노랑 → 주황 → 빨강
+    const gradient = LinearGradient(
+      colors: [
+        Color(0xFF43A047), // 녹색
+        Color(0xFF8BC34A), // 연두
+        Color(0xFFFFEB3B), // 노랑
+        Color(0xFFFF9800), // 주황
+        Color(0xFFF44336), // 빨강
+      ],
+      stops: [0.0, 0.30, 0.55, 0.75, 1.0],
     );
-    canvas.drawCircle(
-      Offset(indicatorX, size.height / 2),
-      12,
+
+    canvas.drawRRect(barRRect, Paint()..shader = gradient.createShader(barRect));
+
+    // 삼각형 인디케이터 ▼ — 끝점이 바 상단에 닿음
+    final ix = (stressIndex / 100).clamp(0.04, 0.96) * size.width;
+    final tri = Path()
+      ..moveTo(ix, barTop)
+      ..lineTo(ix - 8, barTop - triH)
+      ..lineTo(ix + 8, barTop - triH)
+      ..close();
+
+    canvas.drawPath(tri, Paint()..color = Colors.white);
+    canvas.drawPath(tri,
       Paint()
-        ..color = AppColors.primary
+        ..color = Colors.grey.shade400
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.5,
+        ..strokeWidth = 1.2,
     );
   }
 
   @override
-  bool shouldRepaint(_StressMeterPainter old) => old.stressLevel != stressLevel;
+  bool shouldRepaint(_StressGradientPainter old) => old.stressIndex != stressIndex;
 }

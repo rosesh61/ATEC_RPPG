@@ -18,7 +18,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 3,
+      version: 5,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -33,6 +33,19 @@ class DatabaseHelper {
       await db.execute('ALTER TABLE users ADD COLUMN gender TEXT');
       await db.execute('ALTER TABLE users ADD COLUMN region TEXT');
     }
+    if (oldVersion < 4) {
+      // 오프라인 가입 시 얼굴 임베딩 보존 + 서버 미동기화 데이터 추적
+      await db.execute('ALTER TABLE users ADD COLUMN face_descriptor TEXT');
+      await db.execute(
+          'ALTER TABLE measurements ADD COLUMN synced INTEGER NOT NULL DEFAULT 0');
+      await db.execute(
+          'ALTER TABLE cause_records ADD COLUMN synced INTEGER NOT NULL DEFAULT 0');
+      await db.execute('UPDATE measurements SET synced = 1');
+      await db.execute('UPDATE cause_records SET synced = 1');
+    }
+    if (oldVersion < 5) {
+      await db.execute('ALTER TABLE users ADD COLUMN birth_month INTEGER');
+    }
   }
 
   Future<void> _onCreate(Database db, int version) async {
@@ -42,10 +55,12 @@ class DatabaseHelper {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
         birth_year INTEGER,
+        birth_month INTEGER,
         gender TEXT,
         region TEXT,
         phone TEXT,
         server_id TEXT,
+        face_descriptor TEXT,
         created_at TEXT NOT NULL
       )
     ''');
@@ -63,6 +78,7 @@ class DatabaseHelper {
         measurement_duration INTEGER NOT NULL,
         rr_intervals TEXT NOT NULL,
         measured_at TEXT NOT NULL,
+        synced INTEGER NOT NULL DEFAULT 0,
         FOREIGN KEY (user_id) REFERENCES users(id)
       )
     ''');
@@ -75,6 +91,7 @@ class DatabaseHelper {
         measurement_id INTEGER,
         content TEXT NOT NULL,
         recorded_at TEXT NOT NULL,
+        synced INTEGER NOT NULL DEFAULT 0,
         FOREIGN KEY (user_id) REFERENCES users(id),
         FOREIGN KEY (measurement_id) REFERENCES measurements(id)
       )

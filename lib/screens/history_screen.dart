@@ -226,21 +226,23 @@ class _HistoryScreenState extends State<HistoryScreen>
           ),
           child: Row(
             children: [
-              // 스트레스 원
+              // 스트레스 레벨 원
               Container(
-                width: 48,
-                height: 48,
+                width: 52,
+                height: 52,
                 decoration: BoxDecoration(
                   color: stressColor.withOpacity(0.15),
                   shape: BoxShape.circle,
                 ),
                 child: Center(
                   child: Text(
-                    record.stressIndex.toStringAsFixed(0),
+                    record.stressLevel.replaceAll(' ', '\n'),
+                    textAlign: TextAlign.center,
                     style: TextStyle(
                       color: stressColor,
-                      fontSize: 15,
+                      fontSize: 10,
                       fontWeight: FontWeight.w800,
+                      height: 1.3,
                     ),
                   ),
                 ),
@@ -279,7 +281,8 @@ class _HistoryScreenState extends State<HistoryScreen>
                     const SizedBox(height: 6),
                     Row(
                       children: [
-                        _chip(Icons.favorite, '${record.heartRate.toStringAsFixed(0)} BPM',
+                        _chip(Icons.favorite,
+                            '${record.heartRate.toStringAsFixed(0)} BPM',
                             AppColors.error),
                         const SizedBox(width: 10),
                         _chip(Icons.show_chart,
@@ -725,9 +728,10 @@ class _HistoryScreenState extends State<HistoryScreen>
   }
 
   Color _stressColor(double index) {
-    if (index < 30) return AppColors.success;
-    if (index < 60) return AppColors.warning;
-    return AppColors.error;
+    if (index < 30) return const Color(0xFF5AAD77); // 낮음
+    if (index < 60) return const Color(0xFFA8C45A); // 보통
+    if (index < 80) return const Color(0xFFE8B84B); // 높음
+    return const Color(0xFFEF5350);                 // 매우 높음
   }
 
   String _dateKey(DateTime dt) => '${dt.year}년 ${dt.month}월 ${dt.day}일';
@@ -784,34 +788,42 @@ class _DetailSheet extends StatelessWidget {
                 color: AppColors.textSecondary, fontSize: 13),
           ),
           const SizedBox(height: 16),
-          // 스트레스 카드
+          // 스트레스 시각화 카드
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 18),
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
             decoration: BoxDecoration(
-              color: stressColor.withOpacity(0.12),
+              color: stressColor.withOpacity(0.10),
               borderRadius: BorderRadius.circular(14),
             ),
             child: Column(
               children: [
-                Text('스트레스 지수',
-                    style: TextStyle(color: stressColor, fontSize: 13)),
-                const SizedBox(height: 6),
                 Text(
-                  record.stressIndex.toStringAsFixed(0),
+                  record.stressLevel,
                   style: TextStyle(
                     color: stressColor,
-                    fontSize: 52,
+                    fontSize: 28,
                     fontWeight: FontWeight.w800,
                     height: 1,
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(record.stressLevel,
-                    style: TextStyle(
-                        color: stressColor,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600)),
+                const SizedBox(height: 14),
+                SizedBox(
+                  height: 38,
+                  child: CustomPaint(
+                    painter: _MiniStressGradientPainter(record.stressIndex),
+                    child: const SizedBox.expand(),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: const [
+                    Expanded(flex: 30, child: Text('낮음',    textAlign: TextAlign.center, style: TextStyle(color: Color(0xFF5AAD77), fontSize: 10, fontWeight: FontWeight.w600))),
+                    Expanded(flex: 30, child: Text('보통',    textAlign: TextAlign.center, style: TextStyle(color: Color(0xFFA8C45A), fontSize: 10, fontWeight: FontWeight.w600))),
+                    Expanded(flex: 20, child: Text('높음',    textAlign: TextAlign.center, style: TextStyle(color: Color(0xFFE8B84B), fontSize: 10, fontWeight: FontWeight.w600))),
+                    Expanded(flex: 20, child: Text('매우 높음', textAlign: TextAlign.center, style: TextStyle(color: Color(0xFFEF5350), fontSize: 10, fontWeight: FontWeight.w600))),
+                  ],
+                ),
               ],
             ),
           ),
@@ -905,12 +917,59 @@ class _DetailSheet extends StatelessWidget {
   }
 
   Color _stressColor(double index) {
-    if (index < 30) return AppColors.success;
-    if (index < 60) return AppColors.warning;
-    return AppColors.error;
+    if (index < 30) return const Color(0xFF5AAD77); // 낮음
+    if (index < 60) return const Color(0xFFA8C45A); // 보통
+    if (index < 80) return const Color(0xFFE8B84B); // 높음
+    return const Color(0xFFEF5350);                 // 매우 높음
   }
 
   String _formatDateTime(DateTime dt) =>
       '${dt.year}년 ${dt.month}월 ${dt.day}일 '
       '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+}
+
+class _MiniStressGradientPainter extends CustomPainter {
+  final double stressIndex;
+  const _MiniStressGradientPainter(this.stressIndex);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const barH   = 12.0;
+    const triH   = 11.0;
+    const barTop = triH + 3.0;
+
+    final barRect  = Rect.fromLTWH(0, barTop, size.width, barH);
+    final barRRect = RRect.fromRectAndRadius(barRect, const Radius.circular(barH / 2));
+
+    const gradient = LinearGradient(
+      colors: [
+        Color(0xFF43A047),
+        Color(0xFF8BC34A),
+        Color(0xFFFFEB3B),
+        Color(0xFFFF9800),
+        Color(0xFFF44336),
+      ],
+      stops: [0.0, 0.30, 0.55, 0.75, 1.0],
+    );
+
+    canvas.drawRRect(barRRect, Paint()..shader = gradient.createShader(barRect));
+
+    final ix = (stressIndex / 100).clamp(0.04, 0.96) * size.width;
+    final tri = Path()
+      ..moveTo(ix, barTop)
+      ..lineTo(ix - 7, barTop - triH)
+      ..lineTo(ix + 7, barTop - triH)
+      ..close();
+
+    canvas.drawPath(tri, Paint()..color = Colors.white);
+    canvas.drawPath(tri,
+      Paint()
+        ..color = Colors.grey.shade400
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.0,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_MiniStressGradientPainter old) => old.stressIndex != stressIndex;
 }

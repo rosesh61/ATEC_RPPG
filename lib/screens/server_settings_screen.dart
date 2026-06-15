@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/shared_api_service.dart';
+import '../services/sync_service.dart';
 import '../utils/constants.dart';
 
 class ServerSettingsScreen extends StatefulWidget {
@@ -43,6 +44,9 @@ class _ServerSettingsScreenState extends State<ServerSettingsScreen> {
     await SharedApiService.instance.setBaseUrl(url);
     final ok = await SharedApiService.instance.checkHealth();
 
+    // 연결 성공 시 미동기화 데이터 업로드 (백그라운드)
+    if (ok) SyncService.instance.syncAll();
+
     if (!mounted) return;
     setState(() {
       _isTesting = false;
@@ -54,6 +58,7 @@ class _ServerSettingsScreenState extends State<ServerSettingsScreen> {
     final url = _controller.text.trim();
     if (url.isEmpty) return;
     await SharedApiService.instance.setBaseUrl(url);
+    SyncService.instance.syncAll();
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('서버 주소가 저장되었습니다')),

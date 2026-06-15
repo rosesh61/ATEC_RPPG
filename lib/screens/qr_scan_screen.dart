@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../services/shared_api_service.dart';
+import '../services/sync_service.dart';
 import '../services/user_session.dart';
 import '../utils/constants.dart';
 import 'home_screen.dart';
@@ -54,6 +55,9 @@ class _QrScanScreenState extends State<QrScanScreen> {
     // 서버 주소 자동 추출 및 저장 (http://ip:8000)
     final serverUrl = '${uri.scheme}://${uri.host}:${uri.port}';
     await SharedApiService.instance.setBaseUrl(serverUrl);
+
+    // 새 서버 주소로 미동기화 데이터 업로드 (백그라운드)
+    SyncService.instance.syncAll();
 
     // QR 토큰으로 로그인
     final userData = await SharedApiService.instance.loginWithQrToken(token);

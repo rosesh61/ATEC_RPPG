@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:camera/camera.dart';
 import 'package:flutter_onnxruntime/flutter_onnxruntime.dart';
 import 'package:image/image.dart' as img;
+import '../utils/camera_image_converter.dart';
 
 /// YuNet + SFace ONNX 파이프라인.
 /// 웹 키오스크(Python/OpenCV)와 완전히 동일한 전처리:
@@ -33,7 +34,7 @@ class FaceRecognitionService {
     [70.7299, 92.2041], // left mouth corner
   ];
 
-  static const double defaultThreshold = 0.363;
+  static const double defaultThreshold = 0.30;
 
   Future<void> initialize() async {
     if (_isInitialized) return;
@@ -64,7 +65,7 @@ class FaceRecognitionService {
   ) async {
     if (!_isInitialized) return null;
     try {
-      final rgbImage = _yuv420ToRgbImage(cameraImage);
+      final rgbImage = CameraImageConverter.toRgb(cameraImage);
       if (rgbImage == null) return null;
       final oriented = _rotateBySensor(rgbImage, sensorOrientation, isFrontCamera);
       return await _detectAndEmbed(oriented);
@@ -405,36 +406,6 @@ class FaceRecognitionService {
       }
     }
     return tensor;
-  }
-
-  img.Image? _yuv420ToRgbImage(CameraImage image) {
-    try {
-      final result = img.Image(width: image.width, height: image.height);
-      final yPlane = image.planes[0];
-      final uPlane = image.planes[1];
-      final vPlane = image.planes[2];
-
-      for (int y = 0; y < image.height; y++) {
-        for (int x = 0; x < image.width; x++) {
-          final yVal = yPlane.bytes[y * yPlane.bytesPerRow + x];
-          final uvRow = y ~/ 2, uvCol = x ~/ 2;
-          final uVal = uPlane.bytes[uvRow * uPlane.bytesPerRow +
-              uvCol * (uPlane.bytesPerPixel ?? 1)];
-          final vVal = vPlane.bytes[uvRow * vPlane.bytesPerRow +
-              uvCol * (vPlane.bytesPerPixel ?? 1)];
-
-          final yv = yVal - 16, uv = uVal - 128, vv = vVal - 128;
-          final r = (1.164 * yv + 1.596 * vv).clamp(0, 255).toInt();
-          final g = (1.164 * yv - 0.813 * vv - 0.391 * uv).clamp(0, 255).toInt();
-          final b = (1.164 * yv + 2.018 * uv).clamp(0, 255).toInt();
-          result.setPixelRgb(x, y, r, g, b);
-        }
-      }
-      return result;
-    } catch (e) {
-      print('[FaceRecognitionService] YUV→RGB 실패: $e');
-      return null;
-    }
   }
 
   img.Image _rotateBySensor(img.Image src, int sensorOrientation, bool isFrontCamera) {

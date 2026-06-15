@@ -14,17 +14,7 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen>
-    with SingleTickerProviderStateMixin {
-  // ── 탭 ──
-  late final TabController _tabController;
-
-  // ── 이름 로그인 ──
-  final _nameController = TextEditingController();
-  bool _isLoading = false;
-  String? _errorMessage;
-
-  // ── 얼굴 로그인 ──
+class _LoginScreenState extends State<LoginScreen> {
   CameraController? _cameraController;
   bool _cameraReady = false;
   bool _faceProcessing = false;
@@ -32,7 +22,6 @@ class _LoginScreenState extends State<LoginScreen>
   bool _faceSuccess = false;
   Timer? _faceTimer;
 
-  // 연속 매칭 투표 (false positive 방지)
   static const int _voteThresh = 3;
   int _matchVotes = 0;
   int _noMatchVotes = 0;
@@ -40,51 +29,17 @@ class _LoginScreenState extends State<LoginScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-    _tabController.addListener(() {
-      if (_tabController.index == 1 && !_cameraReady) {
-        _initCamera();
-      } else if (_tabController.index == 0) {
-        _stopFaceLogin();
-      }
-    });
     FaceRecognitionService.instance.initialize().catchError((_) {});
+    _initCamera();
   }
 
   @override
   void dispose() {
-    _tabController.dispose();
-    _nameController.dispose();
     _faceTimer?.cancel();
     _cameraController?.dispose();
     super.dispose();
   }
 
-  // ── 이름 로그인 ──────────────────────────────────────
-  Future<void> _login() async {
-    final name = _nameController.text.trim();
-    if (name.isEmpty) {
-      setState(() => _errorMessage = '이름을 입력해주세요');
-      return;
-    }
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
-
-    final user = await UserSession.instance.loginByName(name);
-
-    if (!mounted) return;
-    setState(() => _isLoading = false);
-
-    if (user != null) {
-      _navigateHome();
-    } else {
-      setState(() => _errorMessage = '등록된 이름을 찾을 수 없어요.\n새로 등록해주세요.');
-    }
-  }
-
-  // ── 얼굴 로그인 ──────────────────────────────────────
   Future<void> _initCamera() async {
     try {
       final cameras = await availableCameras();
@@ -116,34 +71,7 @@ class _LoginScreenState extends State<LoginScreen>
     });
   }
 
-  void _stopFaceLogin() {
-    _faceTimer?.cancel();
-    _cameraController?.dispose();
-    _cameraController = null;
-    if (mounted) {
-      setState(() {
-        _cameraReady = false;
-        _faceStatus = '카메라를 얼굴에 맞춰주세요';
-        _faceSuccess = false;
-        _matchVotes = 0;
-        _noMatchVotes = 0;
-      });
-    }
-  }
-
   Future<void> _processFaceFrame() async {
-    if (_faceProcessing || _faceSuccess) return;
-    final ctrl = _cameraController;
-    if (ctrl == null || !ctrl.value.isInitialized || !ctrl.value.isStreamingImages) {
-      // 스트리밍 없이 단일 프레임 캡처
-      await _processFromCapture();
-      return;
-    }
-    // 스트리밍 중이면 단일 캡처 방식 사용
-    await _processFromCapture();
-  }
-
-  Future<void> _processFromCapture() async {
     if (_faceProcessing || _faceSuccess) return;
     final ctrl = _cameraController;
     if (ctrl == null || !ctrl.value.isInitialized) return;
@@ -188,7 +116,7 @@ class _LoginScreenState extends State<LoginScreen>
         _matchVotes = 0;
         _noMatchVotes++;
         if (_noMatchVotes >= _voteThresh) {
-          if (mounted) setState(() => _faceStatus = '등록되지 않은 얼굴이에요. 이름으로 로그인해주세요.');
+          if (mounted) setState(() => _faceStatus = '등록되지 않은 얼굴이에요.');
         } else {
           if (mounted) setState(() => _faceStatus = '얼굴을 정면으로 맞춰주세요.');
         }
@@ -208,7 +136,6 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  // ── UI ──────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -220,212 +147,84 @@ class _LoginScreenState extends State<LoginScreen>
             child: Column(
               children: [
                 const SizedBox(height: 20),
-                // 아바타
                 AvatarWidget(
                   size: 90,
-                  message: _tabController.index == 1
-                      ? (_faceSuccess
-                          ? '반갑습니다! 🌿'
-                          : '카메라를 얼굴에\n맞춰주세요 😊')
-                      : (_errorMessage != null
-                          ? '이름을 다시 확인해주세요 😊'
-                          : '등록하신 이름을\n입력해주세요! 🌿'),
+                  message: _faceSuccess
+                      ? '반갑습니다! 🌿'
+                      : '카메라를 얼굴에\n맞춰주세요 😊',
                   isAnimating: true,
                 ),
                 const SizedBox(height: 16),
-                const Text(
-                  '반갑습니다!',
-                  style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 26,
-                    fontWeight: FontWeight.w800,
+                // 카메라 프리뷰
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 28),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(20),
+                      child: _cameraReady && _cameraController != null
+                          ? Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                CameraPreview(_cameraController!),
+                                CustomPaint(
+                                    painter: _CircleGuidePainter(
+                                        success: _faceSuccess)),
+                              ],
+                            )
+                          : Container(
+                              color: AppColors.glassWhite,
+                              child: Center(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const CircularProgressIndicator(
+                                        color: AppColors.secondary),
+                                    const SizedBox(height: 12),
+                                    Text(
+                                      '카메라 초기화 중...',
+                                      style: TextStyle(
+                                          color: AppColors.textSecondary,
+                                          fontSize: 14),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                    ),
                   ),
                 ),
-                const SizedBox(height: 16),
-                // 탭바
-                Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 28),
-                  decoration: BoxDecoration(
-                    color: AppColors.glassWhite,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: TabBar(
-                    controller: _tabController,
-                    indicator: BoxDecoration(
-                      color: AppColors.secondary,
-                      borderRadius: BorderRadius.circular(10),
+                const SizedBox(height: 12),
+                // 상태 메시지 — 고정 높이로 카메라 영역 크기 변화 방지
+                SizedBox(
+                  height: 48,
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 300),
+                    child: Text(
+                      _faceStatus,
+                      key: ValueKey(_faceStatus),
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      style: TextStyle(
+                        color: _faceSuccess
+                            ? AppColors.secondary
+                            : AppColors.textSecondary,
+                        fontSize: 15,
+                        fontWeight:
+                            _faceSuccess ? FontWeight.w700 : FontWeight.normal,
+                      ),
                     ),
-                    indicatorSize: TabBarIndicatorSize.tab,
-                    labelColor: AppColors.primaryDark,
-                    unselectedLabelColor: AppColors.textSecondary,
-                    labelStyle: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                    ),
-                    tabs: const [
-                      Tab(text: '이름으로 로그인'),
-                      Tab(text: '얼굴 인식'),
-                    ],
                   ),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('← 돌아가기',
+                      style: TextStyle(
+                          color: AppColors.textSecondary, fontSize: 14)),
                 ),
                 const SizedBox(height: 8),
-                // 탭 본문
-                Expanded(
-                  child: TabBarView(
-                    controller: _tabController,
-                    physics: const NeverScrollableScrollPhysics(),
-                    children: [
-                      _buildNameTab(),
-                      _buildFaceTab(),
-                    ],
-                  ),
-                ),
               ],
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNameTab() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
-      child: Column(
-        children: [
-          const SizedBox(height: 8),
-          TextField(
-            controller: _nameController,
-            style:
-                const TextStyle(color: AppColors.textPrimary, fontSize: 18),
-            decoration: InputDecoration(
-              hintText: '이름 입력',
-              hintStyle:
-                  TextStyle(color: AppColors.textSecondary.withOpacity(0.6)),
-              prefixIcon: const Icon(Icons.person_outline,
-                  color: AppColors.textSecondary),
-              filled: true,
-              fillColor: AppColors.glassWhite,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide.none,
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide:
-                    const BorderSide(color: AppColors.secondary, width: 2),
-              ),
-              errorText: _errorMessage,
-              errorStyle: const TextStyle(color: AppColors.error),
-            ),
-            textInputAction: TextInputAction.done,
-            onSubmitted: (_) => _login(),
-          ),
-          const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            height: 56,
-            child: ElevatedButton(
-              onPressed: _isLoading ? null : _login,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.secondary,
-                foregroundColor: AppColors.primaryDark,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
-                elevation: 0,
-              ),
-              child: _isLoading
-                  ? const SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.5,
-                        color: AppColors.primaryDark,
-                      ),
-                    )
-                  : const Text('로그인',
-                      style:
-                          TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-            ),
-          ),
-          const SizedBox(height: 16),
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('← 돌아가기',
-                style: TextStyle(
-                    color: AppColors.textSecondary, fontSize: 14)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFaceTab() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
-      child: Column(
-        children: [
-          const SizedBox(height: 8),
-          // 카메라 프리뷰 (화면 높이에 맞게 유연하게)
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: _cameraReady && _cameraController != null
-                  ? Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        CameraPreview(_cameraController!),
-                        // 타원 가이드
-                        CustomPaint(painter: _OvalGuidePainter(success: _faceSuccess)),
-                      ],
-                    )
-                  : Container(
-                      color: AppColors.glassWhite,
-                      child: Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const CircularProgressIndicator(
-                                color: AppColors.secondary),
-                            const SizedBox(height: 12),
-                            Text(
-                              '카메라 초기화 중...',
-                              style: TextStyle(
-                                  color: AppColors.textSecondary,
-                                  fontSize: 14),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          // 상태 메시지
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 300),
-            child: Text(
-              _faceStatus,
-              key: ValueKey(_faceStatus),
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: _faceSuccess
-                    ? AppColors.secondary
-                    : AppColors.textSecondary,
-                fontSize: 15,
-                fontWeight:
-                    _faceSuccess ? FontWeight.w700 : FontWeight.normal,
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('← 돌아가기',
-                style: TextStyle(
-                    color: AppColors.textSecondary, fontSize: 14)),
-          ),
-          const SizedBox(height: 8),
         ],
       ),
     );
@@ -450,16 +249,15 @@ class _LoginScreenState extends State<LoginScreen>
   }
 }
 
-class _OvalGuidePainter extends CustomPainter {
+class _CircleGuidePainter extends CustomPainter {
   final bool success;
-  const _OvalGuidePainter({required this.success});
+  const _CircleGuidePainter({required this.success});
 
   @override
   void paint(Canvas canvas, Size size) {
     final cx = size.width / 2;
-    final cy = size.height * 0.42;
-    final rx = size.width * 0.38;
-    final ry = size.height * 0.30;
+    final cy = size.height * 0.45;
+    final r = size.width * 0.40;
 
     final paint = Paint()
       ..color = success
@@ -468,10 +266,9 @@ class _OvalGuidePainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.5;
 
-    canvas.drawOval(Rect.fromCenter(
-        center: Offset(cx, cy), width: rx * 2, height: ry * 2), paint);
+    canvas.drawCircle(Offset(cx, cy), r, paint);
   }
 
   @override
-  bool shouldRepaint(_OvalGuidePainter old) => old.success != success;
+  bool shouldRepaint(_CircleGuidePainter old) => old.success != success;
 }

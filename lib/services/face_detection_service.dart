@@ -1,10 +1,10 @@
-import 'dart:typed_data';
 import 'dart:ui';
 import 'package:camera/camera.dart';
 import 'package:flutter/services.dart';
 import 'package:google_mlkit_commons/google_mlkit_commons.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import '../models/face_detection_result.dart';
+import '../utils/camera_image_converter.dart';
 
 class FaceDetectionService {
   FaceDetector? _faceDetector;
@@ -58,7 +58,7 @@ class FaceDetectionService {
         rotDeg = 0;
       }
 
-      final nv21Bytes = _yuv420ToNv21(cameraImage);
+      final nv21Bytes = CameraImageConverter.toNv21(cameraImage);
       if (nv21Bytes == null) return null;
 
       final rotation = InputImageRotationValue.fromRawValue(rotDeg) ??
@@ -137,40 +137,6 @@ class FaceDetectionService {
       );
     } catch (e) {
       print('Error detecting face: $e');
-      return null;
-    }
-  }
-
-  Uint8List? _yuv420ToNv21(CameraImage image) {
-    try {
-      final int width = image.width;
-      final int height = image.height;
-      final int ySize = width * height;
-      final nv21 = Uint8List(ySize + width * height ~/ 2);
-
-      final yPlane = image.planes[0];
-      for (int row = 0; row < height; row++) {
-        final srcOff = row * yPlane.bytesPerRow;
-        final dstOff = row * width;
-        nv21.setRange(dstOff, dstOff + width, yPlane.bytes, srcOff);
-      }
-
-      final uPlane = image.planes[1];
-      final vPlane = image.planes[2];
-      final int uvH = height ~/ 2;
-      final int uvW = width ~/ 2;
-      int uvIdx = ySize;
-      for (int row = 0; row < uvH; row++) {
-        for (int col = 0; col < uvW; col++) {
-          final uOff = row * uPlane.bytesPerRow + col * (uPlane.bytesPerPixel ?? 1);
-          final vOff = row * vPlane.bytesPerRow + col * (vPlane.bytesPerPixel ?? 1);
-          nv21[uvIdx++] = vPlane.bytes[vOff];
-          nv21[uvIdx++] = uPlane.bytes[uOff];
-        }
-      }
-      return nv21;
-    } catch (e) {
-      print('Error converting YUV420 to NV21: $e');
       return null;
     }
   }

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:camera/camera.dart';
@@ -12,6 +11,7 @@ import '../services/user_session.dart';
 import '../services/rppg_service.dart';
 import '../services/hrv_service.dart';
 import '../services/shared_api_service.dart';
+import '../utils/camera_image_converter.dart';
 import '../utils/constants.dart';
 import '../widgets/face_guide_overlay.dart';
 import '../widgets/signal_graph.dart';
@@ -190,7 +190,7 @@ class _MeasurementScreenState extends State<MeasurementScreen> {
 
       if (shouldProcess) {
         // Convert CameraImage to img.Image for rPPG processing
-        final convertedImage = _convertYUV420ToImage(cameraImage);
+        final convertedImage = CameraImageConverter.toRgb(cameraImage);
 
         if (convertedImage != null) {
           // 얼굴 영역 크롭 (너무 작으면 전체 이미지 사용)
@@ -252,43 +252,6 @@ class _MeasurementScreenState extends State<MeasurementScreen> {
       print('Error processing frame: $e');
     } finally {
       _isProcessingFrame = false;
-    }
-  }
-
-  img.Image? _convertYUV420ToImage(CameraImage cameraImage) {
-    try {
-      final int width = cameraImage.width;
-      final int height = cameraImage.height;
-
-      final int uvRowStride = cameraImage.planes[1].bytesPerRow;
-      final int uvPixelStride = cameraImage.planes[1].bytesPerPixel ?? 1;
-
-      final image = img.Image(width: width, height: height);
-
-      for (int h = 0; h < height; h++) {
-        for (int w = 0; w < width; w++) {
-          final int uvIndex =
-              uvPixelStride * (w / 2).floor() + uvRowStride * (h / 2).floor();
-          final int index = h * width + w;
-
-          final yp = cameraImage.planes[0].bytes[index];
-          final up = cameraImage.planes[1].bytes[uvIndex];
-          final vp = cameraImage.planes[2].bytes[uvIndex];
-
-          int r = (yp + vp * 1436 / 1024 - 179).round().clamp(0, 255);
-          int g = (yp - up * 46549 / 131072 + 44 - vp * 93604 / 131072 + 91)
-              .round()
-              .clamp(0, 255);
-          int b = (yp + up * 1814 / 1024 - 227).round().clamp(0, 255);
-
-          image.setPixelRgb(w, h, r, g, b);
-        }
-      }
-
-      return image;
-    } catch (e) {
-      print('Error converting YUV420 to Image: $e');
-      return null;
     }
   }
 
@@ -387,7 +350,10 @@ class _MeasurementScreenState extends State<MeasurementScreen> {
           'rr_intervals': result.rrIntervals,
         };
         final ok = await SharedApiService.instance.saveSession(serverId, sessionData);
-        print(ok ? '✓ Measurement saved to server' : '⚠ Server save failed (local only)');
+        if (ok) await MeasurementDao().markSynced(recordId);
+        print(ok
+            ? '✓ Measurement saved to server'
+            : '⚠ Server save failed (will retry via SyncService)');
       }
 
       if (!mounted) return;

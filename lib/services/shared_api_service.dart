@@ -7,7 +7,13 @@ class SharedApiService {
   SharedApiService._internal();
 
   static const _keyServerUrl = 'server_url';
-  static const _defaultUrl = 'http://127.0.0.1:8000';
+
+  /// 기본 서버 주소. 빌드 시 --dart-define=SERVER_URL=... 로 교체 가능.
+  /// 사용자가 QR/설정 화면에서 주소를 저장하면 그 값이 우선한다.
+  static const _defaultUrl = String.fromEnvironment(
+    'SERVER_URL',
+    defaultValue: 'http://192.168.24.70:8000',
+  );
 
   Future<String> get baseUrl async {
     final prefs = await SharedPreferences.getInstance();
@@ -80,7 +86,7 @@ class SharedApiService {
   /// 얼굴 임베딩으로 로그인. 반환값: 사용자 데이터 or null
   Future<Map<String, dynamic>?> loginWithFace(
     List<double> descriptor, {
-    double threshold = 0.363,
+    double threshold = 0.30,
   }) async {
     try {
       final url = await baseUrl;
